@@ -1,34 +1,34 @@
+import uuid
+
+import cv2
+import uvicorn
+from fastapi import File
+from fastapi import FastAPI
+from fastapi import UploadFile
+import numpy as np
+from PIL import Image
+
+import config
+import inference
 
 
-import streamlit as st
-import requests
+app = FastAPI()
 
 
-def fetch(session, url):
-    try:
-        result = session.get(url)
-        return result.json()
-    except Exception:
-        return {}
+@app.get("/")
+def read_root():
+    return {"message": "Welcome from the API"}
 
 
-def main():
-    st.set_page_config(page_title="Example App", page_icon="🤖")
-    st.title("Get Image by Id")
-    session = requests.Session()
-    with st.form("my_form"):
-        index = st.number_input("ID", min_value=0, max_value=100, key="index")
-
-        submitted = st.form_submit_button("Submit")
-
-        if submitted:
-            st.write("Result")
-            data = fetch(session, f"https://picsum.photos/id/{index}/info")
-            if data:
-                st.image(data['download_url'], caption=f"Author: {data['author']}")
-            else:
-                st.error("Error")
+@app.post("/{style}")
+def get_image(style: str, file: UploadFile = File(...)):
+    image = np.array(Image.open(file.file))
+    model = config.STYLES[style]
+    output, resized = inference.inference(model, image)
+    name = f"/storage/{str(uuid.uuid4())}.jpg"
+    cv2.imwrite(name, output)
+    return {"name": name}
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8080)
